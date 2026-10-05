@@ -2,55 +2,29 @@ import { useState } from 'react';
 import { Pressable, ScrollView, StatusBar, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
-import { router } from 'expo-router';
+import { Link, router } from 'expo-router';
 import type { Href } from 'expo-router';
+import { useNotifications } from '../context/NotificationsContext';
+import { SERVICES } from '../../data/services';
+import {
+  CATEGORY_META,
+  STATUS_STYLE,
+  TRANSACTIONS,
+  dayLabel,
+  naira,
+  timeLabel,
+} from '../../data/transactions';
 
 // Set to false if your business has no referral programme
 const SHOW_REFERRAL = true;
 
-type IconName = keyof typeof Ionicons.glyphMap;
-
 // TODO: replace this demo data with real data from your API
 const user = { firstName: 'John', phone: '08012345678', balance: 12450 };
 
-type Service = { id: string; label: string; icon: IconName; route: string };
-
-const services: Service[] = [
-  { id: 'airtime', label: 'Airtime', icon: 'call-outline', route: '/services/airtime' },
-  { id: 'data', label: 'Data', icon: 'cellular-outline', route: '/services/data' },
-  { id: 'electricity', label: 'Electricity', icon: 'flash-outline', route: '/services/electricity' },
-  { id: 'cable', label: 'Cable TV', icon: 'tv-outline', route: '/services/cable-tv' },
-  { id: 'education', label: 'Education', icon: 'school-outline', route: '/services/education' },
-  { id: 'internet', label: 'Internet', icon: 'wifi-outline', route: '/services/internet' },
-  { id: 'betting', label: 'Betting', icon: 'football-outline', route: '/services/betting' },
-  { id: 'more', label: 'More', icon: 'apps-outline', route: '/services/more' },
-];
-
-type Status = 'success' | 'pending' | 'failed';
-type Tx = {
-  id: string;
-  title: string;
-  sub: string;
-  amount: number; // negative = money out
-  date: string;
-  status: Status;
-  icon: IconName;
-};
-
-const transactions: Tx[] = [
-  { id: '1', title: 'MTN 2GB Data', sub: '08031234567', amount: -1000, date: 'Today, 9:41 AM', status: 'success', icon: 'cellular-outline' },
-  { id: '2', title: 'Wallet funding', sub: 'Bank transfer', amount: 5000, date: 'Yesterday, 4:12 PM', status: 'success', icon: 'wallet-outline' },
-  { id: '3', title: 'Ikeja Electric', sub: 'Meter 4512 ••• 890', amount: -3500, date: 'Mon, 11:05 AM', status: 'pending', icon: 'flash-outline' },
-  { id: '4', title: 'Airtel Airtime', sub: '08024567890', amount: -500, date: 'Sun, 7:30 PM', status: 'failed', icon: 'call-outline' },
-];
-
-const statusStyle: Record<Status, { box: string; text: string; label: string }> = {
-  success: { box: 'bg-green-50', text: 'text-green-700', label: 'Successful' },
-  pending: { box: 'bg-amber-50', text: 'text-amber-700', label: 'Pending' },
-  failed: { box: 'bg-red-50', text: 'text-red-700', label: 'Failed' },
-};
-
-const naira = (n: number) => '₦' + n.toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+// Latest four transactions, newest first
+const recent = [...TRANSACTIONS]
+  .sort((a, b) => +new Date(b.date) - +new Date(a.date))
+  .slice(0, 4);
 
 const greeting = () => {
   const h = new Date().getHours();
@@ -62,6 +36,7 @@ const greeting = () => {
 export default function Home() {
   const insets = useSafeAreaInsets();
   const [hidden, setHidden] = useState(false);
+  const { unreadCount } = useNotifications();
 
   const go = (route: string) => router.push(route as Href);
 
@@ -88,10 +63,19 @@ export default function Home() {
               onPress={() => go('/notifications')}
               hitSlop={10}
               accessibilityRole="button"
-              accessibilityLabel="Notifications"
+              accessibilityLabel={
+                unreadCount > 0 ? `Notifications, ${unreadCount} unread` : 'Notifications'
+              }
               className="h-11 w-11 items-center justify-center rounded-full bg-white/15"
             >
               <Ionicons name="notifications-outline" size={22} color="#FFFFFF" />
+              {unreadCount > 0 && (
+                <View className="absolute -right-0.5 -top-0.5 h-[18px] min-w-[18px] items-center justify-center rounded-full bg-red-500 px-1">
+                  <Text className="text-[10px] font-bold text-white">
+                    {unreadCount > 9 ? '9+' : unreadCount}
+                  </Text>
+                </View>
+              )}
             </Pressable>
           </View>
         </View>
@@ -142,24 +126,24 @@ export default function Home() {
           </View>
         </View>
 
-        {/* Services */}
+        {/* Services: each card opens its own page */}
         <View className="mt-7 px-5">
           <Text className="mb-4 text-lg font-bold text-brand-night">Services</Text>
           <View className="flex-row flex-wrap">
-            {services.map((s) => (
-              <Pressable
-                key={s.id}
-                onPress={() => go(s.route)}
-                accessibilityRole="button"
-                accessibilityLabel={s.label}
-                style={{ width: '25%' }}
-                className="mb-5 items-center active:opacity-70"
-              >
-                <View className="h-14 w-14 items-center justify-center rounded-2xl border border-brand-mist bg-white">
-                  <Ionicons name={s.icon} size={26} color="#281C9D" />
-                </View>
-                <Text className="mt-2 text-xs font-semibold text-brand-night">{s.label}</Text>
-              </Pressable>
+            {SERVICES.map((s) => (
+              <Link key={s.id} href={s.href} asChild>
+                <Pressable
+                  accessibilityRole="button"
+                  accessibilityLabel={s.label}
+                  style={{ width: '25%' }}
+                  className="mb-5 items-center active:opacity-70"
+                >
+                  <View className="h-14 w-14 items-center justify-center rounded-2xl border border-brand-mist bg-white">
+                    <Ionicons name={s.icon} size={26} color="#281C9D" />
+                  </View>
+                  <Text className="mt-2 text-xs font-semibold text-brand-night">{s.label}</Text>
+                </Pressable>
+              </Link>
             ))}
           </View>
         </View>
@@ -194,45 +178,54 @@ export default function Home() {
           </View>
 
           <View className="rounded-3xl bg-white px-4">
-            {transactions.map((t, i) => {
-              const st = statusStyle[t.status];
-              const credit = t.amount > 0;
-              return (
-                <Pressable
-                  key={t.id}
-                  onPress={() => go(`/transactions/${t.id}`)}
-                  accessibilityRole="button"
-                  className={`flex-row items-center py-4 ${
-                    i < transactions.length - 1 ? 'border-b border-brand-air' : ''
-                  }`}
-                >
-                  <View className="h-11 w-11 items-center justify-center rounded-full bg-brand-air">
-                    <Ionicons name={t.icon} size={20} color="#281C9D" />
-                  </View>
-
-                  <View className="ml-3 flex-1">
-                    <Text className="text-base font-semibold text-brand-night" numberOfLines={1}>
-                      {t.title}
-                    </Text>
-                    <Text className="text-xs text-brand-night/60" numberOfLines={1}>
-                      {t.sub} · {t.date}
-                    </Text>
-                  </View>
-
-                  <View className="items-end">
-                    <Text
-                      className={`text-base font-bold ${credit ? 'text-green-600' : 'text-brand-night'}`}
-                    >
-                      {credit ? '+' : '-'}
-                      {naira(Math.abs(t.amount))}
-                    </Text>
-                    <View className={`mt-1 rounded-full px-2 py-0.5 ${st.box}`}>
-                      <Text className={`text-[10px] font-semibold ${st.text}`}>{st.label}</Text>
+            {recent.length === 0 ? (
+              <Text className="py-6 text-center text-sm text-brand-night/60">
+                No transactions yet.
+              </Text>
+            ) : (
+              recent.map((t, i) => {
+                const st = STATUS_STYLE[t.status];
+                const credit = t.amount > 0;
+                return (
+                  <Pressable
+                    key={t.id}
+                    onPress={() => go(`/transactions/${t.id}`)}
+                    accessibilityRole="button"
+                    accessibilityLabel={`${t.title}, ${st.label}`}
+                    className={`flex-row items-center py-4 ${
+                      i < recent.length - 1 ? 'border-b border-brand-air' : ''
+                    }`}
+                  >
+                    <View className="h-11 w-11 items-center justify-center rounded-full bg-brand-air">
+                      <Ionicons name={CATEGORY_META[t.category].icon} size={20} color="#281C9D" />
                     </View>
-                  </View>
-                </Pressable>
-              );
-            })}
+
+                    <View className="ml-3 flex-1">
+                      <Text className="text-base font-semibold text-brand-night" numberOfLines={1}>
+                        {t.title}
+                      </Text>
+                      <Text className="text-xs text-brand-night/60" numberOfLines={1}>
+                        {t.sub} · {dayLabel(t.date)}, {timeLabel(t.date)}
+                      </Text>
+                    </View>
+
+                    <View className="items-end">
+                      <Text
+                        className={`text-base font-bold ${
+                          credit ? 'text-green-600' : 'text-brand-night'
+                        }`}
+                      >
+                        {credit ? '+' : '-'}
+                        {naira(Math.abs(t.amount))}
+                      </Text>
+                      <View className={`mt-1 rounded-full px-2 py-0.5 ${st.box}`}>
+                        <Text className={`text-[10px] font-semibold ${st.text}`}>{st.label}</Text>
+                      </View>
+                    </View>
+                  </Pressable>
+                );
+              })
+            )}
           </View>
         </View>
       </ScrollView>

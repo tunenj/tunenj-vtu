@@ -3,6 +3,7 @@ import { Pressable, Text, View } from 'react-native';
 import { Ionicons } from '@expo/vector-icons';
 import { useSafeAreaInsets } from 'react-native-safe-area-context';
 import { Tabs } from 'expo-router';
+import '../../../reanimatedConfig';
 
 type IconName = keyof typeof Ionicons.glyphMap;
 
@@ -23,7 +24,7 @@ function TabBar({ state, descriptors, navigation }: TabBarProps) {
   return (
     <View
       style={{ paddingBottom: insets.bottom + 8 }}
-      className="flex-row border-t border-brand-air bg-white px-2 pt-2"
+      className="flex-row border-t border-brand-air bg-white px-2 pt-3"
     >
       {state.routes.map((route, index) => {
         const icons = ICONS[route.name];
@@ -53,7 +54,7 @@ function TabBar({ state, descriptors, navigation }: TabBarProps) {
             className="flex-1 items-center"
           >
             <View
-              className={`h-8 w-14 items-center justify-center rounded-full ${
+              className={`h-10 w-16 items-center justify-center rounded-full transition-all ${
                 focused ? 'bg-brand-air' : 'bg-transparent'
               }`}
             >
