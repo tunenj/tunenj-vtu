@@ -24,7 +24,7 @@ import type { Href } from 'expo-router';
 const SHOW_REFERRAL = true;
 
 // TODO: replace these placeholders with your real links and number
-const SUPPORT_WHATSAPP = 'https://wa.me/2348012345678';
+const SUPPORT_WHATSAPP = 'https://wa.me/2347066352045';
 const TERMS_URL = 'https://tunenj.com/terms';
 const PRIVACY_URL = 'https://tunenj.com/privacy';
 
@@ -32,7 +32,7 @@ const PRIVACY_URL = 'https://tunenj.com/privacy';
 const user = {
   firstName: 'John',
   lastName: 'Doe',
-  phone: '08012345678',
+  phone: '07066352045',
   email: 'john.doe@email.com',
   referralCode: 'JOHN2026',
   verified: true,

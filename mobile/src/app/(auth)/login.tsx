@@ -182,36 +182,6 @@ export default function Login() {
             />
           </View>
 
-          {/* ─── Google sign-in ─────────────────────────────────────── */}
-          <Pressable
-            onPress={handleGoogleSignIn}
-            disabled={googleLoading}
-            accessibilityRole="button"
-            accessibilityLabel="Continue with Google"
-            accessibilityState={{ disabled: googleLoading }}
-            className="h-14 flex-row items-center justify-center gap-3 rounded-2xl border border-brand-mist bg-white active:bg-brand-air/40"
-          >
-            {googleLoading ? (
-              <ActivityIndicator color="#281C9D" />
-            ) : (
-              <>
-                <GoogleIcon size={20} />
-                <Text className="text-base font-semibold text-brand-night">
-                  Continue with Google
-                </Text>
-              </>
-            )}
-          </Pressable>
-
-          {/* ─── Divider ────────────────────────────────────────────── */}
-          <View className="my-6 flex-row items-center">
-            <View className="h-px flex-1 bg-brand-mist" />
-            <Text className="mx-4 text-xs font-medium text-brand-night/50">
-              or sign in with email
-            </Text>
-            <View className="h-px flex-1 bg-brand-mist" />
-          </View>
-
           {errors.form ? (
             <View className="mb-4 rounded-xl bg-red-50 px-4 py-3">
               <Text className="text-sm text-red-600">{errors.form}</Text>
@@ -302,6 +272,36 @@ export default function Login() {
               >
                 Sign in
               </Text>
+            )}
+          </Pressable>
+
+          {/* ─── Divider ────────────────────────────────────────────── */}
+          <View className="my-6 flex-row items-center">
+            <View className="h-px flex-1 bg-brand-mist" />
+            <Text className="mx-4 text-xs font-medium text-brand-night/50">
+              or continue with
+            </Text>
+            <View className="h-px flex-1 bg-brand-mist" />
+          </View>
+
+          {/* ─── Google sign-in ─────────────────────────────────────── */}
+          <Pressable
+            onPress={handleGoogleSignIn}
+            disabled={googleLoading}
+            accessibilityRole="button"
+            accessibilityLabel="Continue with Google"
+            accessibilityState={{ disabled: googleLoading }}
+            className="h-14 flex-row items-center justify-center gap-3 rounded-2xl border border-brand-mist bg-white active:bg-brand-air/40"
+          >
+            {googleLoading ? (
+              <ActivityIndicator color="#281C9D" />
+            ) : (
+              <>
+                <GoogleIcon size={20} />
+                <Text className="text-base font-semibold text-brand-night">
+                  Continue with Google
+                </Text>
+              </>
             )}
           </Pressable>
 
