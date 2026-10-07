@@ -85,6 +85,61 @@ export const sendOTPEmail = async (email, otp) => {
 };
 
 /**
+ * Send registration OTP email (used by the phone registration flow)
+ * @param {String} email - User email
+ * @param {String} otp - 4-digit registration code
+ * @returns {Promise<Object>}
+ */
+export const sendRegistrationOTP = async (email, otp) => {
+  if (!otp) throw new Error('OTP is required');
+
+  if (process.env.NODE_ENV === 'production') {
+    return sendEmail(
+      email,
+      'Welcome to VTU App - Verify Your Account',
+      templates.otp(otp)
+    );
+  }
+
+  // Development mode: log to console so you don't need real SMTP
+  console.log('\n╔════════════════════════════════════════════════════╗');
+  console.log('║          📧 REGISTRATION OTP (DEV)                  ║');
+  console.log('╚════════════════════════════════════════════════════╝');
+  console.log(`📧 To: ${email}`);
+  console.log(`🔐 OTP: ${otp}`);
+  console.log(`⏱️  Expires: 10 minutes`);
+  console.log('═══════════════════════════════════════════════════════\n');
+  return successResponse('Registration OTP logged to console');
+};
+
+/**
+ * Send password reset OTP email
+ * @param {String} email - User email
+ * @param {String} otp - 6-digit reset code
+ * @returns {Promise<Object>}
+ */
+export const sendPasswordResetOTP = async (email, otp) => {
+  if (!otp) throw new Error('OTP is required');
+
+  if (process.env.NODE_ENV === 'production') {
+    return sendEmail(
+      email,
+      'Password Reset Code - VTU App',
+      templates.otp(otp)
+    );
+  }
+
+  console.log('\n╔════════════════════════════════════════════════════╗');
+  console.log('║          📧 PASSWORD RESET OTP (DEV)                ║');
+  console.log('╚════════════════════════════════════════════════════╝');
+  console.log(`📧 To: ${email}`);
+  console.log(`🔐 OTP: ${otp}`);
+  console.log(`⏱️  Expires: 10 minutes`);
+  console.log('═══════════════════════════════════════════════════════\n');
+  return successResponse('Password reset OTP logged to console');
+};
+
+/**
  * Send password reset email
  * @param {String} email - User email
  * @param {String} resetToken - Reset token
@@ -147,6 +202,8 @@ export const sendTransactionReceipt = async (email, transaction) => {
 
 const emailService = {
   sendOTPEmail,
+  sendRegistrationOTP,
+  sendPasswordResetOTP,
   sendPasswordResetEmail,
   sendWelcomeEmail,
   sendTransactionReceipt,

@@ -1,6 +1,10 @@
 import nodemailer from 'nodemailer';
+console.log('[config.js] env check:', {
+  hasUser: !!process.env.SMTP_USER,
+  hasPass: !!process.env.SMTP_PASS,
+  cwd: process.cwd(),
+});
 
-console.log('');
 
 const transporter = nodemailer.createTransport({
   service: 'gmail',

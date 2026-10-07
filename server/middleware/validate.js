@@ -9,9 +9,15 @@ const validateRequest = (schema) => {
 
       for (const rule of rules) {
         const error = rule(value, field, req.body);
+
         if (error) {
-          errors.push({ field, message: error });
-          break; // Stop at first error per field
+          errors.push({
+            field,
+            message: error,
+          });
+
+          // Stop at first error for this field
+          break;
         }
       }
     }
@@ -28,12 +34,19 @@ const validateRequest = (schema) => {
   };
 };
 
-// ─── Reusable Rule Factories ───────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// REUSABLE RULES
+// ─────────────────────────────────────────────────────────────
 
 const rules = {
-  // Basic rules
+  // ───────────────────────────────────────────────────────────
+  // BASIC RULES
+  // ───────────────────────────────────────────────────────────
+
   required: (value, field) =>
-    value === undefined || value === null || String(value).trim() === ""
+    value === undefined ||
+    value === null ||
+    String(value).trim() === ""
       ? `${field} is required`
       : null,
 
@@ -44,8 +57,12 @@ const rules = {
 
   email: (value, field) => {
     if (!value) return null;
+
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    return !emailRegex.test(value) ? `${field} must be a valid email address` : null;
+
+    return !emailRegex.test(String(value).trim())
+      ? `${field} must be a valid email address`
+      : null;
   },
 
   minLength: (min) => (value, field) =>
@@ -75,7 +92,9 @@ const rules = {
 
   phoneNumber: (value, field) => {
     if (!value) return null;
-    const phoneRegex = /^(\+?234|0)[789][01]\d{8}$/;
+
+    const phoneRegex = /^(?:\+?234|0)[789][01]\d{8}$/;
+
     return !phoneRegex.test(String(value).trim())
       ? `${field} must be a valid Nigerian phone number`
       : null;
@@ -88,7 +107,9 @@ const rules = {
 
   meterNumber: (value, field) => {
     if (!value) return null;
+
     const meterRegex = /^\d{11,13}$/;
+
     return !meterRegex.test(String(value).trim())
       ? `${field} must be a valid meter number (11-13 digits)`
       : null;
@@ -96,92 +117,147 @@ const rules = {
 
   smartCardNumber: (value, field) => {
     if (!value) return null;
+
     const cardRegex = /^\d{10,11}$/;
+
     return !cardRegex.test(String(value).trim())
       ? `${field} must be a valid smart card number (10-11 digits)`
       : null;
   },
 
-  // OTP validation
+  // ───────────────────────────────────────────────────────────
+  // OTP RULES
+  // ───────────────────────────────────────────────────────────
+
+  // 6-digit OTP
+  // Used for password reset and other 6-digit OTP flows.
   otp: (value, field) => {
     if (!value) return null;
+
     const otpRegex = /^\d{6}$/;
+
     return !otpRegex.test(String(value).trim())
       ? `${field} must be a 6-digit number`
       : null;
   },
 
+  // 4-digit OTP
+  // Used specifically for registration.
+  otp4: (value, field) => {
+    if (!value) return null;
+
+    const otpRegex = /^\d{4}$/;
+
+    return !otpRegex.test(String(value).trim())
+      ? `${field} must be a 4-digit number`
+      : null;
+  },
+
   purpose: (value, field) => {
     if (!value) return null;
-    const allowedPurposes = ['registration', 'password_reset', 'pin_reset', 'login'];
+
+    const allowedPurposes = [
+      "registration",
+      "password_reset",
+      "pin_reset",
+      "login",
+    ];
+
     return !allowedPurposes.includes(value)
       ? `${field} must be one of: ${allowedPurposes.join(", ")}`
       : null;
   },
 
-  // ─── PASSWORD STRENGTH RULES ─────────────────────────────────────────────
+  // ───────────────────────────────────────────────────────────
+  // PASSWORD RULES
+  // ───────────────────────────────────────────────────────────
 
-  // Must contain at least one uppercase letter
   hasUppercase: (value, field) => {
     if (!value) return null;
+
     const uppercaseRegex = /[A-Z]/;
+
     return !uppercaseRegex.test(value)
       ? `${field} must contain at least one uppercase letter`
       : null;
   },
 
-  // Must contain at least one lowercase letter
   hasLowercase: (value, field) => {
     if (!value) return null;
+
     const lowercaseRegex = /[a-z]/;
+
     return !lowercaseRegex.test(value)
       ? `${field} must contain at least one lowercase letter`
       : null;
   },
 
-  // Must contain at least one number
   hasNumber: (value, field) => {
     if (!value) return null;
+
     const numberRegex = /\d/;
+
     return !numberRegex.test(value)
       ? `${field} must contain at least one number`
       : null;
   },
 
-  // Must contain at least one special character
   hasSpecialChar: (value, field) => {
     if (!value) return null;
+
     const specialCharRegex = /[!@#$%^&*(),.?":{}|<>]/;
+
     return !specialCharRegex.test(value)
       ? `${field} must contain at least one special character (!@#$%^&* etc.)`
       : null;
   },
 
-  // No spaces allowed
   noSpaces: (value, field) => {
     if (!value) return null;
+
     const spaceRegex = /\s/;
+
     return spaceRegex.test(value)
       ? `${field} cannot contain spaces`
       : null;
   },
 
-  // No common passwords
   notCommonPassword: (value, field) => {
     if (!value) return null;
+
     const commonPasswords = [
-      'password', 'password123', '123456', '12345678', 'qwerty', 
-      'admin', 'admin123', 'letmein', 'welcome', 'monkey',
-      'password1', '123456789', '12345', '1234', '1234567890',
-      'abc123', 'computer', 'internet', 'test', 'test123',
-      'qwerty123', '1q2w3e4r', '123123', '111111', '000000'
+      "password",
+      "password123",
+      "123456",
+      "12345678",
+      "qwerty",
+      "admin",
+      "admin123",
+      "letmein",
+      "welcome",
+      "monkey",
+      "password1",
+      "123456789",
+      "12345",
+      "1234",
+      "1234567890",
+      "abc123",
+      "computer",
+      "internet",
+      "test",
+      "test123",
+      "qwerty123",
+      "1q2w3e4r",
+      "123123",
+      "111111",
+      "000000",
     ];
+
     return commonPasswords.includes(String(value).toLowerCase())
       ? `${field} is too common. Please choose a stronger password`
       : null;
   },
 
-  // Password strength checker with comprehensive validation
   passwordStrength: (options = {}) => {
     const defaults = {
       minLength: 8,
@@ -190,99 +266,139 @@ const rules = {
       requireNumber: true,
       requireSpecialChar: true,
       noSpaces: true,
-      noCommon: true
+      noCommon: true,
     };
-    
-    const config = { ...defaults, ...options };
-    
-    return (value, field ) => {
+
+    const config = {
+      ...defaults,
+      ...options,
+    };
+
+    return (value, field) => {
       if (!value) return null;
-      
+
       const password = String(value);
       const errors = [];
-      
-      // Check length
+
       if (password.length < config.minLength) {
         errors.push(`at least ${config.minLength} characters`);
       }
-      
-      // Check uppercase
-      if (config.requireUppercase && !/[A-Z]/.test(password)) {
-        errors.push('an uppercase letter');
+
+      if (
+        config.requireUppercase &&
+        !/[A-Z]/.test(password)
+      ) {
+        errors.push("an uppercase letter");
       }
-      
-      // Check lowercase
-      if (config.requireLowercase && !/[a-z]/.test(password)) {
-        errors.push('a lowercase letter');
+
+      if (
+        config.requireLowercase &&
+        !/[a-z]/.test(password)
+      ) {
+        errors.push("a lowercase letter");
       }
-      
-      // Check number
-      if (config.requireNumber && !/\d/.test(password)) {
-        errors.push('a number');
+
+      if (
+        config.requireNumber &&
+        !/\d/.test(password)
+      ) {
+        errors.push("a number");
       }
-      
-      // Check special character
-      if (config.requireSpecialChar && !/[!@#$%^&*(),.?":{}|<>]/.test(password)) {
-        errors.push('a special character');
+
+      if (
+        config.requireSpecialChar &&
+        !/[!@#$%^&*(),.?":{}|<>]/.test(password)
+      ) {
+        errors.push("a special character");
       }
-      
-      // Check spaces
-      if (config.noSpaces && /\s/.test(password)) {
-        errors.push('no spaces');
+
+      if (
+        config.noSpaces &&
+        /\s/.test(password)
+      ) {
+        errors.push("no spaces");
       }
-      
-      // Check common passwords
+
       if (config.noCommon) {
         const commonPasswords = [
-          'password', 'password123', '123456', '12345678', 'qwerty', 
-          'admin', 'admin123', 'letmein', 'welcome', 'monkey'
+          "password",
+          "password123",
+          "123456",
+          "12345678",
+          "qwerty",
+          "admin",
+          "admin123",
+          "letmein",
+          "welcome",
+          "monkey",
         ];
-        if (commonPasswords.includes(password.toLowerCase())) {
+
+        if (
+          commonPasswords.includes(password.toLowerCase())
+        ) {
           return `${field} is too common. Please choose a stronger password`;
         }
       }
-      
-      // If there are errors, return a formatted message
+
       if (errors.length > 0) {
-        return `${field} must contain ${errors.join(', ')}`;
+        return `${field} must contain ${errors.join(", ")}`;
       }
-      
+
       return null;
     };
   },
 
-  // Password confirmation (matches another field)
   matches: (fieldToMatch) => (value, field, allFields) => {
     if (!value || !allFields) return null;
+
     return value !== allFields[fieldToMatch]
       ? `${field} must match ${fieldToMatch}`
       : null;
   },
 
-  // Not matching another field (for change password)
   notMatches: (fieldToMatch) => (value, field, allFields) => {
     if (!value || !allFields) return null;
+
     return value === allFields[fieldToMatch]
       ? `${field} must be different from ${fieldToMatch}`
       : null;
   },
 };
 
-// ─── Auth Validators ───────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// AUTH VALIDATORS
+// ─────────────────────────────────────────────────────────────
 
-// Strong password registration with confirm password
+// Registration
+// Collects full name, email, phone, and password.
+// OTP is sent during registration and verified separately.
+
 const validateRegister = validateRequest({
-  name: [
+  firstName: [
     rules.required,
     rules.string,
     rules.minLength(2),
     rules.maxLength(50),
   ],
+
+  lastName: [
+    rules.required,
+    rules.string,
+    rules.minLength(2),
+    rules.maxLength(50),
+  ],
+
   email: [
     rules.required,
     rules.email,
     rules.maxLength(100),
   ],
+
+  phone: [
+    rules.required,
+    rules.phoneNumber,
+  ],
+
   password: [
     rules.required,
     rules.passwordStrength({
@@ -292,32 +408,44 @@ const validateRegister = validateRequest({
       requireNumber: true,
       requireSpecialChar: true,
       noSpaces: true,
-      noCommon: true
+      noCommon: true,
     }),
     rules.maxLength(64),
   ],
+
   confirmPassword: [
     rules.required,
-    rules.matches('password'),
-  ],
-  phone: [
-    rules.required,
-    rules.phoneNumber,
+    rules.matches("password"),
   ],
 });
 
-// Alternative: Registration with detailed individual rules
+// Alternative detailed registration validator
+
 const validateRegisterDetailed = validateRequest({
-  name: [
+  firstName: [
     rules.required,
     rules.string,
     rules.minLength(2),
     rules.maxLength(50),
   ],
+
+  lastName: [
+    rules.required,
+    rules.string,
+    rules.minLength(2),
+    rules.maxLength(50),
+  ],
+
   email: [
     rules.required,
     rules.email,
   ],
+
+  phone: [
+    rules.required,
+    rules.phoneNumber,
+  ],
+
   password: [
     rules.required,
     rules.minLength(8),
@@ -329,43 +457,107 @@ const validateRegisterDetailed = validateRequest({
     rules.noSpaces,
     rules.notCommonPassword,
   ],
+
   confirmPassword: [
     rules.required,
-    rules.matches('password'),
-  ],
-  phone: [
-    rules.required,
-    rules.phoneNumber,
+    rules.matches("password"),
   ],
 });
 
-// Login validator (less strict for existing users)
-const validateLogin = validateRequest({
+// ─────────────────────────────────────────────────────────────
+// VERIFY REGISTRATION OTP
+// EMAIL + OTP (4-digit)
+// ─────────────────────────────────────────────────────────────
+
+const validateVerifyRegistration = validateRequest({
   email: [
     rules.required,
     rules.email,
   ],
-  password: [
+
+  otp: [
     rules.required,
-    rules.minLength(6),
-    rules.maxLength(64),
+    rules.otp4,
   ],
 });
 
-// Refresh token validator
+// ─────────────────────────────────────────────────────────────
+// LOGIN
+// Accepts either "identifier" (email or phone) OR "email".
+// The controller normalizes both into req.body.identifier.
+// ─────────────────────────────────────────────────────────────
+
+const validateLogin = (req, res, next) => {
+  const errors = [];
+
+  const rawIdentifier = req.body.identifier ?? req.body.email;
+  const identifier =
+    rawIdentifier === undefined || rawIdentifier === null
+      ? ""
+      : String(rawIdentifier).trim();
+
+  if (!identifier) {
+    errors.push({
+      field: "identifier",
+      message: "Email or phone number is required",
+    });
+  } else if (identifier.length < 3) {
+    errors.push({
+      field: "identifier",
+      message: "identifier must be at least 3 characters",
+    });
+  }
+
+  const password = req.body.password;
+  if (password === undefined || password === null || String(password) === "") {
+    errors.push({ field: "password", message: "password is required" });
+  } else if (String(password).length < 6) {
+    errors.push({
+      field: "password",
+      message: "password must be at least 6 characters",
+    });
+  } else if (String(password).length > 64) {
+    errors.push({
+      field: "password",
+      message: "password must not exceed 64 characters",
+    });
+  }
+
+  if (errors.length > 0) {
+    return res.status(422).json({
+      success: false,
+      message: "Validation failed",
+      errors,
+    });
+  }
+
+  // Normalize so the controller always sees `identifier`
+  req.body.identifier = identifier;
+
+  next();
+};
+
+// ─────────────────────────────────────────────────────────────
+// REFRESH TOKEN
+// ─────────────────────────────────────────────────────────────
+
 const validateRefresh = validateRequest({
   refreshToken: [
     rules.required,
   ],
 });
 
-// Change password validator
+// ─────────────────────────────────────────────────────────────
+// CHANGE PASSWORD
+// ─────────────────────────────────────────────────────────────
+
 const validateChangePassword = validateRequest({
   currentPassword: [
     rules.required,
     rules.minLength(6),
     rules.maxLength(64),
   ],
+
   newPassword: [
     rules.required,
     rules.passwordStrength({
@@ -375,18 +567,22 @@ const validateChangePassword = validateRequest({
       requireNumber: true,
       requireSpecialChar: true,
       noSpaces: true,
-      noCommon: true
+      noCommon: true,
     }),
     rules.maxLength(64),
-    rules.notMatches('currentPassword'),
+    rules.notMatches("currentPassword"),
   ],
+
   confirmNewPassword: [
     rules.required,
-    rules.matches('newPassword'),
+    rules.matches("newPassword"),
   ],
 });
 
-// Forgot password request validator
+// ─────────────────────────────────────────────────────────────
+// FORGOT PASSWORD
+// ─────────────────────────────────────────────────────────────
+
 const validateForgotPassword = validateRequest({
   email: [
     rules.required,
@@ -394,11 +590,20 @@ const validateForgotPassword = validateRequest({
   ],
 });
 
-// Reset password validator
+// ─────────────────────────────────────────────────────────────
+// RESET PASSWORD
+// ─────────────────────────────────────────────────────────────
+
 const validateResetPassword = validateRequest({
-  token: [
+  email: [
+    rules.required,
+    rules.email,
+  ],
+
+  resetToken: [
     rules.required,
   ],
+
   newPassword: [
     rules.required,
     rules.passwordStrength({
@@ -408,101 +613,97 @@ const validateResetPassword = validateRequest({
       requireNumber: true,
       requireSpecialChar: true,
       noSpaces: true,
-      noCommon: true
+      noCommon: true,
     }),
     rules.maxLength(64),
   ],
+
   confirmNewPassword: [
     rules.required,
-    rules.matches('newPassword'),
+    rules.matches("newPassword"),
   ],
 });
 
-// ─── OTP Validators ───────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// COMPLETE PASSWORD RESET
+// ─────────────────────────────────────────────────────────────
+//
+// Used by:
+// POST /forgot-password/reset
+//
+// Expected body:
+//
+// {
+//   "email": "user@example.com",
+//   "resetToken": "TOKEN_FROM_VERIFY_RESPONSE",
+//   "newPassword": "NewPassword1@",
+//   "confirmNewPassword": "NewPassword1@"
+// }
+//
+// ─────────────────────────────────────────────────────────────
 
-// Send OTP validator (registration or password reset)
-const validateSendOTP = validateRequest({
-  name: (req) => {
-    // Only validate name if purpose is registration
-    const schema = [];
-    if (req.body.purpose === 'registration') {
-      schema.push(
-        rules.required,
-        rules.string,
-        rules.minLength(2),
-        rules.maxLength(50)
-      );
-    }
-    return schema;
-  },
+const validateCompletePasswordReset = validateRequest({
   email: [
     rules.required,
     rules.email,
   ],
-  phone: (req) => {
-    // Only validate phone if purpose is registration
-    const schema = [];
-    if (req.body.purpose === 'registration') {
-      schema.push(
-        rules.required,
-        rules.phoneNumber
-      );
-    }
-    return schema;
-  },
-  password: (req) => {
-    // Only validate password if purpose is registration
-    const schema = [];
-    if (req.body.purpose === 'registration') {
-      schema.push(
-        rules.required,
-        rules.passwordStrength({
-          minLength: 8,
-          requireUppercase: true,
-          requireLowercase: true,
-          requireNumber: true,
-          requireSpecialChar: true,
-          noSpaces: true,
-          noCommon: true
-        }),
-        rules.maxLength(64)
-      );
-    }
-    return schema;
-  },
-  confirmPassword: (req) => {
-    // Only validate confirmPassword if purpose is registration
-    const schema = [];
-    if (req.body.purpose === 'registration') {
-      schema.push(
-        rules.required,
-        rules.matches('password')
-      );
-    }
-    return schema;
-  },
-  purpose: [
+
+  resetToken: [
     rules.required,
-    rules.purpose,
+  ],
+
+  newPassword: [
+    rules.required,
+    rules.passwordStrength({
+      minLength: 8,
+      requireUppercase: true,
+      requireLowercase: true,
+      requireNumber: true,
+      requireSpecialChar: true,
+      noSpaces: true,
+      noCommon: true,
+    }),
+    rules.maxLength(64),
+  ],
+
+  confirmNewPassword: [
+    rules.required,
+    rules.matches("newPassword"),
   ],
 });
 
-// Alternative: Separate validators for better clarity
-const validateSendRegistrationOTP = validateRequest({
-  name: [
+// ─────────────────────────────────────────────────────────────
+// OTP VALIDATORS
+// ─────────────────────────────────────────────────────────────
+
+// Send OTP during registration
+// This receives the registration information.
+
+const validateSendOTP = validateRequest({
+  firstName: [
     rules.required,
     rules.string,
     rules.minLength(2),
     rules.maxLength(50),
   ],
+
+  lastName: [
+    rules.required,
+    rules.string,
+    rules.minLength(2),
+    rules.maxLength(50),
+  ],
+
   email: [
     rules.required,
     rules.email,
   ],
+
   phone: [
     rules.required,
     rules.phoneNumber,
   ],
+
   password: [
     rules.required,
     rules.passwordStrength({
@@ -512,104 +713,111 @@ const validateSendRegistrationOTP = validateRequest({
       requireNumber: true,
       requireSpecialChar: true,
       noSpaces: true,
-      noCommon: true
+      noCommon: true,
     }),
     rules.maxLength(64),
   ],
+
   confirmPassword: [
     rules.required,
-    rules.matches('password'),
+    rules.matches("password"),
   ],
 });
+
+// ─────────────────────────────────────────────────────────────
+// RESEND REGISTRATION OTP
+// EMAIL + PURPOSE
+// ─────────────────────────────────────────────────────────────
+
+const validateSendRegistrationOTP = validateRequest({
+  email: [
+    rules.required,
+    rules.email,
+  ],
+
+  purpose: [
+    rules.inArray(["registration"]),
+  ],
+});
+
+// ─────────────────────────────────────────────────────────────
+// SEND PASSWORD RESET OTP
+// 6-digit OTP
+// Email-based
+// ─────────────────────────────────────────────────────────────
 
 const validateSendPasswordResetOTP = validateRequest({
   email: [
     rules.required,
     rules.email,
   ],
+
+  purpose: [
+    rules.inArray(["password_reset"]),
+  ],
 });
 
-// Verify OTP validator
+// ─────────────────────────────────────────────────────────────
+// VERIFY PASSWORD RESET OTP
+// 6 DIGIT
+// EMAIL + OTP
+// ─────────────────────────────────────────────────────────────
+
 const validateVerifyOTP = validateRequest({
   email: [
     rules.required,
     rules.email,
   ],
+
   otp: [
     rules.required,
     rules.otp,
   ],
 });
 
-// Verify OTP with purpose (for flows where purpose matters)
+// ─────────────────────────────────────────────────────────────
+// VERIFY OTP WITH PURPOSE
+// ─────────────────────────────────────────────────────────────
+
 const validateVerifyOTPWithPurpose = validateRequest({
   email: [
     rules.required,
     rules.email,
   ],
+
   otp: [
     rules.required,
     rules.otp,
   ],
+
   purpose: [
     rules.required,
     rules.purpose,
   ],
 });
 
-// Resend OTP validator
+// ─────────────────────────────────────────────────────────────
+// RESEND OTP
+// ─────────────────────────────────────────────────────────────
+
 const validateResendOTP = validateRequest({
-  email: [
-    rules.required,
-    rules.email,
-  ],
   purpose: [
     rules.required,
     rules.purpose,
   ],
-});
 
-// Complete OTP registration flow validator (step 2 after OTP verification)
-const validateCompleteRegistration = validateRequest({
+  phone: [
+    rules.phoneNumber,
+  ],
+
   email: [
-    rules.required,
     rules.email,
   ],
-  otp: [
-    rules.required,
-    rules.otp,
-  ],
 });
 
-// Complete password reset flow validator (step 3 after OTP verification)
-const validateCompletePasswordReset = validateRequest({
-  email: [
-    rules.required,
-    rules.email,
-  ],
-  resetToken: [
-    rules.required,
-  ],
-  newPassword: [
-    rules.required,
-    rules.passwordStrength({
-      minLength: 8,
-      requireUppercase: true,
-      requireLowercase: true,
-      requireNumber: true,
-      requireSpecialChar: true,
-      noSpaces: true,
-      noCommon: true
-    }),
-    rules.maxLength(64),
-  ],
-  confirmNewPassword: [
-    rules.required,
-    rules.matches('newPassword'),
-  ],
-});
-
-// ─── Wallet Validators ─────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// WALLET VALIDATORS
+// ─────────────────────────────────────────────────────────────
 
 const validateFundWallet = validateRequest({
   amount: [
@@ -625,12 +833,14 @@ const validateTransfer = validateRequest({
     rules.required,
     rules.email,
   ],
+
   amount: [
     rules.required,
     rules.numeric,
     rules.positiveNumber,
     rules.minAmount(100),
   ],
+
   description: [
     rules.string,
     rules.maxLength(200),
@@ -644,22 +854,26 @@ const validateWithdraw = validateRequest({
     rules.positiveNumber,
     rules.minAmount(500),
   ],
+
   bankCode: [
     rules.required,
     rules.string,
     rules.minLength(3),
   ],
+
   accountNumber: [
     rules.required,
     rules.string,
     rules.minLength(10),
     rules.maxLength(10),
   ],
+
   accountName: [
     rules.required,
     rules.string,
     rules.minLength(3),
   ],
+
   pin: [
     rules.required,
     rules.string,
@@ -668,24 +882,38 @@ const validateWithdraw = validateRequest({
   ],
 });
 
-// ─── VTU Validators ────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// VTU VALIDATORS
+// ─────────────────────────────────────────────────────────────
 
 const validateBuyAirtime = validateRequest({
   phone: [
     rules.required,
     rules.phoneNumber,
   ],
+
   amount: [
     rules.required,
     rules.numeric,
     rules.positiveNumber,
     rules.minAmount(50),
-    (value) => Number(value) <= 10000 ? null : 'amount must not exceed ₦10,000',
+
+    (value) =>
+      Number(value) <= 10000
+        ? null
+        : "amount must not exceed ₦10,000",
   ],
+
   network: [
     rules.required,
-    rules.inArray(["MTN", "GLO", "AIRTEL", "9MOBILE"]),
+    rules.inArray([
+      "MTN",
+      "GLO",
+      "AIRTEL",
+      "9MOBILE",
+    ]),
   ],
+
   pin: [
     rules.required,
     rules.string,
@@ -699,15 +927,23 @@ const validateBuyData = validateRequest({
     rules.required,
     rules.phoneNumber,
   ],
+
   network: [
     rules.required,
-    rules.inArray(["MTN", "GLO", "AIRTEL", "9MOBILE"]),
+    rules.inArray([
+      "MTN",
+      "GLO",
+      "AIRTEL",
+      "9MOBILE",
+    ]),
   ],
+
   planId: [
     rules.required,
     rules.string,
     rules.minLength(3),
   ],
+
   pin: [
     rules.required,
     rules.string,
@@ -721,24 +957,43 @@ const validateBuyElectricity = validateRequest({
     rules.required,
     rules.meterNumber,
   ],
+
   amount: [
     rules.required,
     rules.numeric,
     rules.positiveNumber,
     rules.minAmount(500),
   ],
+
   meterType: [
     rules.required,
-    rules.inArray(["prepaid", "postpaid"]),
+    rules.inArray([
+      "prepaid",
+      "postpaid",
+    ]),
   ],
+
   provider: [
     rules.required,
-    rules.inArray(["IKEDC", "EKEDC", "PHED", "IBEDC", "AEDC", "KEDCO", "YEDC", "BEDC", "ENEDCO", "EEDC"]),
+    rules.inArray([
+      "IKEDC",
+      "EKEDC",
+      "PHED",
+      "IBEDC",
+      "AEDC",
+      "KEDCO",
+      "YEDC",
+      "BEDC",
+      "ENEDCO",
+      "EEDC",
+    ]),
   ],
+
   phone: [
     rules.required,
     rules.phoneNumber,
   ],
+
   pin: [
     rules.required,
     rules.string,
@@ -752,18 +1007,26 @@ const validateBuyCableTv = validateRequest({
     rules.required,
     rules.smartCardNumber,
   ],
+
   provider: [
     rules.required,
-    rules.inArray(["DSTV", "GOTV", "STARTIMES"]),
+    rules.inArray([
+      "DSTV",
+      "GOTV",
+      "STARTIMES",
+    ]),
   ],
+
   planId: [
     rules.required,
     rules.string,
   ],
+
   phone: [
     rules.required,
     rules.phoneNumber,
   ],
+
   pin: [
     rules.required,
     rules.string,
@@ -777,10 +1040,15 @@ const validateVerifyMeter = validateRequest({
     rules.required,
     rules.meterNumber,
   ],
+
   meterType: [
     rules.required,
-    rules.inArray(["prepaid", "postpaid"]),
+    rules.inArray([
+      "prepaid",
+      "postpaid",
+    ]),
   ],
+
   provider: [
     rules.required,
     rules.string,
@@ -792,9 +1060,14 @@ const validateVerifySmartCard = validateRequest({
     rules.required,
     rules.smartCardNumber,
   ],
+
   provider: [
     rules.required,
-    rules.inArray(["DSTV", "GOTV", "STARTIMES"]),
+    rules.inArray([
+      "DSTV",
+      "GOTV",
+      "STARTIMES",
+    ]),
   ],
 });
 
@@ -803,18 +1076,29 @@ const validateBeneficiary = validateRequest({
     rules.required,
     rules.phoneNumber,
   ],
+
   network: [
     rules.required,
-    rules.inArray(["MTN", "GLO", "AIRTEL", "9MOBILE"]),
+    rules.inArray([
+      "MTN",
+      "GLO",
+      "AIRTEL",
+      "9MOBILE",
+    ]),
   ],
+
   nickname: [
     rules.string,
     rules.minLength(2),
     rules.maxLength(30),
   ],
+
   type: [
     rules.required,
-    rules.inArray(["airtime", "data"]),
+    rules.inArray([
+      "airtime",
+      "data",
+    ]),
   ],
 });
 
@@ -825,16 +1109,18 @@ const validateUpdatePin = validateRequest({
     rules.minLength(4),
     rules.maxLength(4),
   ],
+
   newPin: [
     rules.required,
     rules.string,
     rules.minLength(4),
     rules.maxLength(4),
-    rules.notMatches('currentPin'),
+    rules.notMatches("currentPin"),
   ],
+
   confirmNewPin: [
     rules.required,
-    rules.matches('newPin'),
+    rules.matches("newPin"),
   ],
 });
 
@@ -847,82 +1133,121 @@ const validateVerifyPin = validateRequest({
   ],
 });
 
-// ─── Admin Validators ──────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// ADMIN VALIDATORS
+// ─────────────────────────────────────────────────────────────
 
 const validateAdminCreateUser = validateRequest({
-  name: [
+  firstName: [
     rules.required,
     rules.string,
     rules.minLength(2),
     rules.maxLength(50),
   ],
+
+  lastName: [
+    rules.required,
+    rules.string,
+    rules.minLength(2),
+    rules.maxLength(50),
+  ],
+
   email: [
     rules.required,
     rules.email,
   ],
+
   phone: [
     rules.required,
     rules.phoneNumber,
   ],
+
   password: [
     rules.required,
     rules.minLength(8),
   ],
+
   role: [
-    rules.inArray(['user', 'admin', 'reseller']),
+    rules.inArray([
+      "user",
+      "admin",
+      "reseller",
+    ]),
   ],
 });
 
 const validateAdminUpdateUser = validateRequest({
-  name: [
+  firstName: [
     rules.string,
     rules.minLength(2),
     rules.maxLength(50),
   ],
+
+  lastName: [
+    rules.string,
+    rules.minLength(2),
+    rules.maxLength(50),
+  ],
+
   email: [
     rules.email,
   ],
+
   phone: [
     rules.phoneNumber,
   ],
+
   role: [
-    rules.inArray(['user', 'admin', 'reseller']),
+    rules.inArray([
+      "user",
+      "admin",
+      "reseller",
+    ]),
   ],
+
   isVerified: [
-    rules.inArray(['true', 'false', true, false]),
+    rules.inArray([
+      "true",
+      "false",
+      true,
+      false,
+    ]),
   ],
 });
 
-// ─── Exports ───────────────────────────────────────────────────────────────────
+// ─────────────────────────────────────────────────────────────
+// EXPORTS
+// ─────────────────────────────────────────────────────────────
 
 export {
   validateRequest,
   rules,
-  // Auth validators
+
+  // Auth
   validateRegister,
   validateRegisterDetailed,
+  validateVerifyRegistration,
   validateLogin,
   validateRefresh,
   validateChangePassword,
   validateForgotPassword,
   validateResetPassword,
-  
-  // OTP validators
+  validateCompletePasswordReset,
+
+  // OTP
   validateSendOTP,
   validateSendRegistrationOTP,
   validateSendPasswordResetOTP,
   validateVerifyOTP,
   validateVerifyOTPWithPurpose,
   validateResendOTP,
-  validateCompleteRegistration,
-  validateCompletePasswordReset,
-  
-  // Wallet validators
+
+  // Wallet
   validateFundWallet,
   validateTransfer,
   validateWithdraw,
-  
-  // VTU validators
+
+  // VTU
   validateBuyAirtime,
   validateBuyData,
   validateBuyElectricity,
@@ -932,8 +1257,8 @@ export {
   validateBeneficiary,
   validateUpdatePin,
   validateVerifyPin,
-  
-  // Admin validators
+
+  // Admin
   validateAdminCreateUser,
   validateAdminUpdateUser,
 };

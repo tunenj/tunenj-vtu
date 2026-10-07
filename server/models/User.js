@@ -4,7 +4,13 @@ import mongoose from 'mongoose';
 import bcrypt from 'bcryptjs';
 
 const UserSchema = new mongoose.Schema({
-  name: {
+  firstName: {
+    type: String,
+    required: true,
+    trim: true
+  },
+
+  lastName: {
     type: String,
     required: true,
     trim: true
@@ -38,12 +44,38 @@ const UserSchema = new mongoose.Schema({
     default: 'user'
   },
 
+  referralCode: {
+    type: String,
+    unique: true,
+    sparse: true,  // allow multiple users without a code (pending registrations)
+    uppercase: true,
+    trim: true
+  },
+
+  referredBy: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: 'User'
+  },
+
+  // Phone verification fields
+  isPhoneVerified: {
+    type: Boolean,
+    default: false
+  },
+  phoneVerifiedAt: {
+    type: Date
+  },
+
   // Email verification fields
   isEmailVerified: {
     type: Boolean,
     default: false
   },
   verifiedAt: {
+    type: Date
+  },
+
+  termsAcceptedAt: {
     type: Date
   },
 
@@ -57,6 +89,9 @@ const UserSchema = new mongoose.Schema({
       enum: ['registration', 'password_reset', 'pin_reset', 'login']
     },
     expiresAt: {
+      type: Date
+    },
+    sentAt: {
       type: Date
     },
     attempts: {
@@ -116,9 +151,9 @@ const UserSchema = new mongoose.Schema({
 }, { timestamps: true });
 
 // ─── INDEXES ───────────────────────────────────────────────────────────────
-// REMOVED DUPLICATE INDEXES for email and phone
-// Keep only the TTL index for auto-deleting expired OTPs
-UserSchema.index({ 'otp.expiresAt': 1 }, { expireAfterSeconds: 0 }); // Auto-delete expired OTPs
+// email and phone already have unique indexes from the schema definitions.
+// Add a TTL index so expired OTPs get cleaned up automatically.
+UserSchema.index({ 'otp.expiresAt': 1 }, { expireAfterSeconds: 0 });
 
 // ─── MIDDLEWARE ────────────────────────────────────────────────────────────
 UserSchema.pre('save', async function () {
@@ -131,8 +166,8 @@ UserSchema.pre('save', async function () {
   if (this.isModified('pin') && this.pin) {
     this.pin = await bcrypt.hash(this.pin, 12);
   }
-  // Don't call next() - async functions auto-resolve
 });
+
 // ─── METHODS ───────────────────────────────────────────────────────────────
 
 /**

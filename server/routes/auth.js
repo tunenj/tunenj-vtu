@@ -21,8 +21,8 @@ import {
 } from '../controllers/authController.js';
 
 import {
-  // Auth validators
   validateRegister,
+  validateVerifyRegistration,
   validateLogin,
   validateRefresh,
   validateChangePassword,
@@ -58,7 +58,7 @@ router.post('/register', validateRegister, register);
  * @body    { email, otp }
  * @returns { success, message, accessToken, refreshToken, user }
  */
-router.post('/register/verify', validateVerifyOTP, verifyRegistration);
+router.post('/register/verify', validateVerifyRegistration, verifyRegistration);
 
 // ─── LOGIN ─────────────────────────────────────────────────────────────────
 

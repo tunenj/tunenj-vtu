@@ -1,15 +1,14 @@
+import 'dotenv/config';
 import express    from 'express';
 import cors       from 'cors';
 import helmet     from 'helmet';
 import morgan     from 'morgan';
 import rateLimit  from 'express-rate-limit';
-import dotenv     from 'dotenv';
 import connectDB  from './config/db.js';
 import authRoutes   from './routes/auth.js';
 import walletRoutes from './routes/wallet.js';
 import vtuRoutes    from './routes/vtu.js';
 
-dotenv.config();
 connectDB();
 
 const app = express();

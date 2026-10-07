@@ -4,10 +4,10 @@ import bcrypt from 'bcryptjs';
 class OTPService {
   /**
    * Generate a random OTP
-   * @param {number} length - OTP length (default: 6)
+   * @param {number} length - OTP length (default: 4)
    * @returns {string} - Generated OTP
    */
-  generateOTP(length = 6) {
+  generateOTP(length = 4) {
     const digits = '0123456789';
     let otp = '';
     for (let i = 0; i < length; i++) {
