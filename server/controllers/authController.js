@@ -444,7 +444,7 @@ export const login = async (req, res) => {
     if (!user || !(await user.matchPassword(password))) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid phone number, email or password'
+        message: 'Invalid email or password'
       });
     }
 

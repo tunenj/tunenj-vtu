@@ -20,12 +20,13 @@ type Step = 'request' | 'verify' | 'reset' | 'done';
 
 const CODE_LENGTH = 4;
 const RESEND_SECONDS = 60;
+const API = process.env.EXPO_PUBLIC_API_URL; // e.g. https://your-api.com/api
 
 const COPY: Record<Step, { header: string; title: string; text: string }> = {
   request: {
     header: 'Forgot password',
     title: 'Reset your password',
-    text: "Enter the phone number or email on your account and we'll send you a code.",
+    text: "Enter the email on your account and we'll send you a 4-digit code.",
   },
   verify: {
     header: 'Verify code',
@@ -44,13 +45,11 @@ const COPY: Record<Step, { header: string; title: string; text: string }> = {
   },
 };
 
-// Shows "j***@email.com" or "080****678" instead of the full value
+// Shows "j***@email.com" instead of the full email
 const maskTarget = (value: string) => {
-  if (value.includes('@')) {
-    const [name, domain] = value.split('@');
-    return `${name.slice(0, 1)}${'*'.repeat(Math.max(name.length - 1, 2))}@${domain}`;
-  }
-  return `${value.slice(0, 3)}****${value.slice(-3)}`;
+  const [name, domain] = value.split('@');
+  if (!domain) return value;
+  return `${name.slice(0, 1)}${'*'.repeat(Math.max(name.length - 1, 2))}@${domain}`;
 };
 
 /** Password rules — evaluated live as the user types */
@@ -77,6 +76,7 @@ export default function ForgotPassword() {
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
+  const [resetToken, setResetToken] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -137,18 +137,25 @@ export default function ForgotPassword() {
 
   const sendCode = async () => {
     const value = identifier.trim();
-    const isEmail = /^\S+@\S+\.\S+$/.test(value);
-    const isPhone = /^\+?\d{10,14}$/.test(value.replace(/\s/g, ''));
-    if (!isEmail && !isPhone) {
-      setError('Enter a valid phone number or email');
+    if (!/^\S+@\S+\.\S+$/.test(value)) {
+      setError('Enter a valid email address');
       return;
     }
     setLoading(true);
     setError('');
     try {
-      // TODO: replace with your real API call
-      await new Promise((r) => setTimeout(r, 1000));
+      const res = await fetch(`${API}/auth/forgot-password`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: value }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to send code');
+      }
+
       setCode('');
+      setResetToken('');
       setSeconds(RESEND_SECONDS);
       setStep('verify');
     } catch (err) {
@@ -163,8 +170,17 @@ export default function ForgotPassword() {
     setLoading(true);
     setError('');
     try {
-      // TODO: replace with your real API call
-      await new Promise((r) => setTimeout(r, 1000));
+      const res = await fetch(`${API}/auth/forgot-password/verify`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: identifier.trim(), otp: code }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'That code is wrong or has expired.');
+      }
+
+      setResetToken(data.resetToken);
       setStep('reset');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'That code is wrong or has expired.');
@@ -185,8 +201,23 @@ export default function ForgotPassword() {
     setLoading(true);
     setError('');
     try {
-      // TODO: replace with your real API call
-      await new Promise((r) => setTimeout(r, 1000));
+      const res = await fetch(`${API}/auth/forgot-password/reset`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: identifier.trim(),
+          resetToken,
+          newPassword: password,
+          confirmNewPassword: confirm,
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Something went wrong. Try again.');
+      }
+
+      // Optional: persist data.accessToken / data.refreshToken here if you
+      // want to auto-login instead of routing to /login.
       setStep('done');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Try again.');
@@ -197,7 +228,28 @@ export default function ForgotPassword() {
 
   const resend = async () => {
     if (seconds > 0 || loading) return;
-    await sendCode();
+    setLoading(true);
+    setError('');
+    try {
+      const res = await fetch(`${API}/auth/resend-otp`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          email: identifier.trim(),
+          purpose: 'password_reset',
+        }),
+      });
+      const data = await res.json();
+      if (!res.ok || !data.success) {
+        throw new Error(data.message || 'Failed to resend code');
+      }
+      setCode('');
+      setSeconds(RESEND_SECONDS);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Something went wrong. Try again.');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleContinue = () => {
@@ -332,7 +384,7 @@ export default function ForgotPassword() {
                 </View>
               ) : null}
 
-              {/* Step 1: phone or email */}
+              {/* Step 1: email */}
               {step === 'request' && (
                 <View
                   className={`${inputBase} ${
@@ -345,12 +397,13 @@ export default function ForgotPassword() {
                       setIdentifier(t);
                       setError('');
                     }}
-                    placeholder="Phone number or email"
+                    placeholder="Email address"
                     placeholderTextColor="#9a96c8"
                     autoCapitalize="none"
                     autoCorrect={false}
                     keyboardType="email-address"
-                    textContentType="username"
+                    textContentType="emailAddress"
+                    autoComplete="email"
                     returnKeyType="send"
                     onSubmitEditing={handleContinue}
                     className="flex-1 text-base text-brand-night"
