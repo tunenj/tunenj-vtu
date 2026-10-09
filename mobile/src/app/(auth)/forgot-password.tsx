@@ -20,7 +20,6 @@ type Step = 'request' | 'verify' | 'reset' | 'done';
 
 const CODE_LENGTH = 4;
 const RESEND_SECONDS = 60;
-const API = process.env.EXPO_PUBLIC_API_URL; // e.g. https://your-api.com/api
 
 const COPY: Record<Step, { header: string; title: string; text: string }> = {
   request: {
@@ -76,7 +75,6 @@ export default function ForgotPassword() {
   const [code, setCode] = useState('');
   const [password, setPassword] = useState('');
   const [confirm, setConfirm] = useState('');
-  const [resetToken, setResetToken] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -135,6 +133,7 @@ export default function ForgotPassword() {
     else router.replace('/login');
   };
 
+  // ─── Local step handlers (no API) ────────────────────────────────────────
   const sendCode = async () => {
     const value = identifier.trim();
     if (!/^\S+@\S+\.\S+$/.test(value)) {
@@ -143,50 +142,20 @@ export default function ForgotPassword() {
     }
     setLoading(true);
     setError('');
-    try {
-      const res = await fetch(`${API}/auth/forgot-password`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: value }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Failed to send code');
-      }
-
-      setCode('');
-      setResetToken('');
-      setSeconds(RESEND_SECONDS);
-      setStep('verify');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Try again.');
-    } finally {
-      setLoading(false);
-    }
+    // TODO: wire up your API call here
+    setCode('');
+    setSeconds(RESEND_SECONDS);
+    setStep('verify');
+    setLoading(false);
   };
 
   const verifyCode = async () => {
     if (code.length !== CODE_LENGTH) return;
     setLoading(true);
     setError('');
-    try {
-      const res = await fetch(`${API}/auth/forgot-password/verify`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ email: identifier.trim(), otp: code }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'That code is wrong or has expired.');
-      }
-
-      setResetToken(data.resetToken);
-      setStep('reset');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'That code is wrong or has expired.');
-    } finally {
-      setLoading(false);
-    }
+    // TODO: wire up your API call here
+    setStep('reset');
+    setLoading(false);
   };
 
   const resetPassword = async () => {
@@ -200,56 +169,19 @@ export default function ForgotPassword() {
     }
     setLoading(true);
     setError('');
-    try {
-      const res = await fetch(`${API}/auth/forgot-password/reset`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: identifier.trim(),
-          resetToken,
-          newPassword: password,
-          confirmNewPassword: confirm,
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Something went wrong. Try again.');
-      }
-
-      // Optional: persist data.accessToken / data.refreshToken here if you
-      // want to auto-login instead of routing to /login.
-      setStep('done');
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Try again.');
-    } finally {
-      setLoading(false);
-    }
+    // TODO: wire up your API call here
+    setStep('done');
+    setLoading(false);
   };
 
   const resend = async () => {
     if (seconds > 0 || loading) return;
     setLoading(true);
     setError('');
-    try {
-      const res = await fetch(`${API}/auth/resend-otp`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          email: identifier.trim(),
-          purpose: 'password_reset',
-        }),
-      });
-      const data = await res.json();
-      if (!res.ok || !data.success) {
-        throw new Error(data.message || 'Failed to resend code');
-      }
-      setCode('');
-      setSeconds(RESEND_SECONDS);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Something went wrong. Try again.');
-    } finally {
-      setLoading(false);
-    }
+    // TODO: wire up your API call here
+    setCode('');
+    setSeconds(RESEND_SECONDS);
+    setLoading(false);
   };
 
   const handleContinue = () => {

@@ -17,28 +17,34 @@ import OTPService from '../services/otpService.js';
 
 // ─── CONSTANTS ─────────────────────────────────────────────────────────────
 
-const REG_OTP_LENGTH = 4;              // the app shows 4 code boxes
-const OTP_TTL_MS = 10 * 60 * 1000;     // code valid for 10 minutes
-const OTP_MAX_ATTEMPTS = 3;            // wrong guesses before the code is thrown away
-const RESEND_COOLDOWN_MS = 60 * 1000;  // the app shows a 60 second "Resend" countdown
+const REG_OTP_LENGTH = 4;                  // the app shows 4 code boxes
+const RESET_OTP_LENGTH = 4;                // must match frontend CODE_LENGTH
+const OTP_TTL_MS = 10 * 60 * 1000;         // code valid for 10 minutes
+const OTP_MAX_ATTEMPTS = 3;                // wrong guesses before the code is thrown away
+const RESEND_COOLDOWN_MS = 60 * 1000;      // the app shows a 60 second "Resend" countdown
+const RESET_TOKEN_TTL_MS = 60 * 60 * 1000; // reset token valid for 1 hour
 
-const PHONE_REGEX = /^0[789][01]\d{8}$/;  // same Nigerian format the app checks
+const PHONE_REGEX = /^0[789][01]\d{8}$/;   // same Nigerian format the app checks
 const EMAIL_REGEX = /^\S+@\S+\.\S+$/;
+
+// Mirror of frontend PASSWORD_RULES:
+//   8+ chars, 1 uppercase, 1 lowercase, 1 number, 1 symbol
+const PASSWORD_REGEX =
+  /^(?=.*[A-Z])(?=.*[a-z])(?=.*\d)(?=.*[^A-Za-z0-9]).{8,}$/;
+
+const PASSWORD_RULE_MESSAGE =
+  'Password must be at least 8 characters and include an uppercase letter, a lowercase letter, a number, and a symbol';
 
 // ─── HELPER FUNCTIONS ──────────────────────────────────────────────────────
 
 const generateTokens = (userId) => {
   const accessToken = jwt.sign({ id: userId }, process.env.JWT_SECRET, {
-    expiresIn: '10m' // 10 minutes
+    expiresIn: '10m', // 10 minutes
   });
   const refreshToken = jwt.sign({ id: userId }, process.env.JWT_REFRESH_SECRET, {
-    expiresIn: '7d' // 7 days
+    expiresIn: '7d', // 7 days
   });
   return { accessToken, refreshToken };
-};
-
-const generateRandomToken = () => {
-  return crypto.randomBytes(32).toString('hex');
 };
 
 /** 08012345678, +2348012345678 and 2348012345678 all become 08012345678 */
@@ -58,11 +64,16 @@ const identifierQuery = (identifier) =>
     : { phone: normalizePhone(identifier) };
 
 /** Accounts created before the phone flow only have isEmailVerified, so accept either */
-const isAccountVerified = (user) => Boolean(user.isPhoneVerified || user.isEmailVerified);
+const isAccountVerified = (user) =>
+  Boolean(user.isPhoneVerified || user.isEmailVerified);
 
-/** Random 4-digit code, with leading zeros kept (for example 0482) */
+/** Random 4-digit code for registration, leading zeros kept (for example 0482) */
 const generateRegistrationOTP = () =>
   crypto.randomInt(0, 10 ** REG_OTP_LENGTH).toString().padStart(REG_OTP_LENGTH, '0');
+
+/** Random 4-digit code for password reset — same length as the app shows */
+const generateResetOTP = () =>
+  crypto.randomInt(0, 10 ** RESET_OTP_LENGTH).toString().padStart(RESET_OTP_LENGTH, '0');
 
 const buildOtp = async (otp, purpose) => ({
   code: await OTPService.hashOTP(otp),
@@ -70,7 +81,7 @@ const buildOtp = async (otp, purpose) => ({
   expiresAt: new Date(Date.now() + OTP_TTL_MS),
   sentAt: new Date(),
   attempts: 0,
-  verified: false
+  verified: false,
 });
 
 const isCoolingDown = (user) => {
@@ -81,7 +92,9 @@ const isCoolingDown = (user) => {
 const cooldownSecondsLeft = (user) =>
   Math.max(
     1,
-    Math.ceil((RESEND_COOLDOWN_MS - (Date.now() - new Date(user.otp.sentAt).getTime())) / 1000)
+    Math.ceil(
+      (RESEND_COOLDOWN_MS - (Date.now() - new Date(user.otp.sentAt).getTime())) / 1000
+    )
   );
 
 /**
@@ -89,7 +102,9 @@ const cooldownSecondsLeft = (user) =>
  */
 const sendRegistrationCode = async ({ phone, email, otp }) => {
   if (process.env.NODE_ENV !== 'production') {
-    console.log(`[DEV] Registration OTP for ${email} (${phone || 'no phone'}): ${otp}`);
+    console.log(
+      `[DEV] Registration OTP for ${email} (${phone || 'no phone'}): ${otp}`
+    );
   }
 
   try {
@@ -124,7 +139,7 @@ const publicUser = (user) => ({
   email: user.email,
   phone: user.phone,
   referralCode: user.referralCode,
-  role: user.role
+  role: user.role,
 });
 
 // ═════════════════════════════════════════════════════════════════════════════
@@ -141,7 +156,14 @@ const publicUser = (user) => ({
  */
 export const register = async (req, res) => {
   try {
-    const { firstName, lastName, password, confirmPassword, referralCode, acceptedTerms } = req.body;
+    const {
+      firstName,
+      lastName,
+      password,
+      confirmPassword,
+      referralCode,
+      acceptedTerms,
+    } = req.body;
     const phone = normalizePhone(req.body.phone);
     const email = normalizeEmail(req.body.email);
     const first = String(firstName || '').trim();
@@ -149,12 +171,15 @@ export const register = async (req, res) => {
 
     // Validate input (same rules as the app, so the messages match)
     const errors = {};
-    if (first.length < 2 || first.length > 50) errors.firstName = 'Enter your first name';
-    if (last.length < 2 || last.length > 50) errors.lastName = 'Enter your last name';
-    if (!PHONE_REGEX.test(phone)) errors.phone = 'Enter a valid Nigerian number, e.g. 08012345678';
+    if (first.length < 2 || first.length > 50)
+      errors.firstName = 'Enter your first name';
+    if (last.length < 2 || last.length > 50)
+      errors.lastName = 'Enter your last name';
+    if (!PHONE_REGEX.test(phone))
+      errors.phone = 'Enter a valid Nigerian number, e.g. 08012345678';
     if (!EMAIL_REGEX.test(email)) errors.email = 'Enter a valid email address';
-    if (typeof password !== 'string' || password.length < 8) {
-      errors.password = 'Password must be at least 8 characters';
+    if (typeof password !== 'string' || !PASSWORD_REGEX.test(password)) {
+      errors.password = PASSWORD_RULE_MESSAGE;
     }
     if (confirmPassword !== undefined && confirmPassword !== password) {
       errors.confirmPassword = 'Passwords do not match';
@@ -164,7 +189,7 @@ export const register = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Please check the highlighted fields',
-        errors
+        errors,
       });
     }
 
@@ -177,7 +202,7 @@ export const register = async (req, res) => {
         return res.status(400).json({
           success: false,
           message: 'That referral code was not found',
-          errors: { referralCode: 'Referral code not found' }
+          errors: { referralCode: 'Referral code not found' },
         });
       }
     }
@@ -186,18 +211,19 @@ export const register = async (req, res) => {
     const existingUser = await User.findOne({
       $and: [
         { $or: [{ email }, { phone }] },
-        { $or: [{ isPhoneVerified: true }, { isEmailVerified: true }] }
-      ]
+        { $or: [{ isPhoneVerified: true }, { isEmailVerified: true }] },
+      ],
     }).select('email phone');
 
     if (existingUser) {
       const conflict = {};
       if (existingUser.email === email) conflict.email = 'Email already registered';
-      if (existingUser.phone === phone) conflict.phone = 'Phone number already registered';
+      if (existingUser.phone === phone)
+        conflict.phone = 'Phone number already registered';
       return res.status(409).json({
         success: false,
         message: Object.values(conflict).join('. '),
-        errors: conflict
+        errors: conflict,
       });
     }
 
@@ -205,7 +231,7 @@ export const register = async (req, res) => {
     let user = await User.findOne({
       $or: [{ email }, { phone }],
       isPhoneVerified: { $ne: true },
-      isEmailVerified: { $ne: true }
+      isEmailVerified: { $ne: true },
     });
 
     // Do not spam the same address: wait for the resend cooldown
@@ -219,7 +245,7 @@ export const register = async (req, res) => {
       return res.status(429).json({
         success: false,
         message: `Please wait ${retryAfter} seconds before requesting another code`,
-        retryAfter
+        retryAfter,
       });
     }
 
@@ -246,7 +272,7 @@ export const register = async (req, res) => {
         password,
         referredBy: referrer ? referrer._id : undefined,
         termsAcceptedAt: acceptedTerms ? new Date() : undefined,
-        otp: otpData
+        otp: otpData,
       });
     }
 
@@ -256,7 +282,7 @@ export const register = async (req, res) => {
     if (!sent) {
       return res.status(503).json({
         success: false,
-        message: 'We could not send your verification code. Please try again.'
+        message: 'We could not send your verification code. Please try again.',
       });
     }
 
@@ -265,23 +291,22 @@ export const register = async (req, res) => {
       message: `We sent a ${REG_OTP_LENGTH}-digit code to your email. Valid for 10 minutes.`,
       email,
       phone,
-      expiresIn: OTP_TTL_MS / 1000,   // seconds
+      expiresIn: OTP_TTL_MS / 1000, // seconds
       resendIn: RESEND_COOLDOWN_MS / 1000,
-      codeLength: REG_OTP_LENGTH
+      codeLength: REG_OTP_LENGTH,
     });
-
   } catch (error) {
     // Duplicate key: someone else grabbed the same email or phone at the same moment
     if (error.code === 11000) {
       return res.status(409).json({
         success: false,
-        message: 'That email or phone number is already in use'
+        message: 'That email or phone number is already in use',
       });
     }
     console.error('Registration error:', error);
     res.status(500).json({
       success: false,
-      message: 'Something went wrong. Please try again.'
+      message: 'Something went wrong. Please try again.',
     });
   }
 };
@@ -299,10 +324,13 @@ export const verifyRegistration = async (req, res) => {
     const code = String(req.body.otp ?? req.body.code ?? '').trim();
 
     // Validate input
-    if (!EMAIL_REGEX.test(email) || !new RegExp(`^\\d{${REG_OTP_LENGTH}}$`).test(code)) {
+    if (
+      !EMAIL_REGEX.test(email) ||
+      !new RegExp(`^\\d{${REG_OTP_LENGTH}}$`).test(code)
+    ) {
       return res.status(400).json({
         success: false,
-        message: `Enter the ${REG_OTP_LENGTH}-digit code we sent to your email`
+        message: `Enter the ${REG_OTP_LENGTH}-digit code we sent to your email`,
       });
     }
 
@@ -312,13 +340,13 @@ export const verifyRegistration = async (req, res) => {
       isPhoneVerified: { $ne: true },
       isEmailVerified: { $ne: true },
       'otp.purpose': 'registration',
-      'otp.verified': false
+      'otp.verified': false,
     });
 
     if (!user) {
       return res.status(400).json({
         success: false,
-        message: 'No pending registration found. Please register again.'
+        message: 'No pending registration found. Please register again.',
       });
     }
 
@@ -328,7 +356,7 @@ export const verifyRegistration = async (req, res) => {
       await user.save();
       return res.status(400).json({
         success: false,
-        message: 'Code expired. Please request a new code.'
+        message: 'Code expired. Please request a new code.',
       });
     }
 
@@ -338,7 +366,7 @@ export const verifyRegistration = async (req, res) => {
       await user.save();
       return res.status(400).json({
         success: false,
-        message: 'Too many wrong attempts. Please request a new code.'
+        message: 'Too many wrong attempts. Please request a new code.',
       });
     }
 
@@ -355,7 +383,7 @@ export const verifyRegistration = async (req, res) => {
         return res.status(400).json({
           success: false,
           message: 'Too many wrong attempts. Please request a new code.',
-          attemptsLeft: 0
+          attemptsLeft: 0,
         });
       }
 
@@ -364,14 +392,14 @@ export const verifyRegistration = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'That code is wrong or has expired.',
-        attemptsLeft: OTP_MAX_ATTEMPTS - user.otp.attempts
+        attemptsLeft: OTP_MAX_ATTEMPTS - user.otp.attempts,
       });
     }
 
     // Mark the account as verified (email is what we actually sent the OTP to)
     user.isEmailVerified = true;
     user.emailVerifiedAt = new Date();
-    user.isPhoneVerified = true;        // keep in sync if you also verify by phone elsewhere
+    user.isPhoneVerified = true; // keep in sync if you also verify by phone elsewhere
     user.phoneVerifiedAt = new Date();
     user.verifiedAt = new Date();
     user.referralCode =
@@ -390,9 +418,7 @@ export const verifyRegistration = async (req, res) => {
     // Send the welcome email (non-blocking — a mail failure must not fail registration)
     emailService
       .sendWelcomeEmail(user.email, user.firstName)
-      .catch((err) =>
-        console.error('Welcome email failed:', err?.message || err)
-      );
+      .catch((err) => console.error('Welcome email failed:', err?.message || err));
 
     // TODO: if (user.referredBy) { reward the referrer here, using your own rules }
 
@@ -404,14 +430,13 @@ export const verifyRegistration = async (req, res) => {
       message: 'Registration successful',
       accessToken,
       refreshToken,
-      user: publicUser(user)
+      user: publicUser(user),
     });
-
   } catch (error) {
     console.error('Verify registration error:', error);
     res.status(500).json({
       success: false,
-      message: 'Something went wrong. Please try again.'
+      message: 'Something went wrong. Please try again.',
     });
   }
 };
@@ -435,7 +460,7 @@ export const login = async (req, res) => {
     if (!identifier || !password) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide your phone number or email, and your password'
+        message: 'Please provide your phone number or email, and your password',
       });
     }
 
@@ -444,7 +469,7 @@ export const login = async (req, res) => {
     if (!user || !(await user.matchPassword(password))) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid email or password'
+        message: 'Invalid email or password',
       });
     }
 
@@ -454,7 +479,7 @@ export const login = async (req, res) => {
         success: false,
         message: 'Please verify your account to continue.',
         needsVerification: true,
-        email: user.email
+        email: user.email,
       });
     }
 
@@ -470,13 +495,13 @@ export const login = async (req, res) => {
       message: 'Login successful',
       accessToken,
       refreshToken,
-      user: publicUser(user)
+      user: publicUser(user),
     });
   } catch (err) {
     console.error('Login error:', err);
     res.status(500).json({
       success: false,
-      message: 'Something went wrong. Please try again.'
+      message: 'Something went wrong. Please try again.',
     });
   }
 };
@@ -498,7 +523,7 @@ export const refresh = async (req, res) => {
     if (!refreshToken) {
       return res.status(401).json({
         success: false,
-        message: 'No refresh token provided'
+        message: 'No refresh token provided',
       });
     }
 
@@ -508,14 +533,14 @@ export const refresh = async (req, res) => {
     if (!user) {
       return res.status(401).json({
         success: false,
-        message: 'Invalid refresh token'
+        message: 'Invalid refresh token',
       });
     }
 
     const { accessToken } = generateTokens(user._id);
     res.json({
       success: true,
-      accessToken
+      accessToken,
     });
   } catch (err) {
     console.error('Refresh token error:', err.message);
@@ -523,19 +548,19 @@ export const refresh = async (req, res) => {
     if (err.name === 'TokenExpiredError') {
       return res.status(401).json({
         success: false,
-        message: 'Refresh token expired. Please login again.'
+        message: 'Refresh token expired. Please login again.',
       });
     }
     if (err.name === 'JsonWebTokenError') {
       return res.status(401).json({
         success: false,
-        message: 'Invalid refresh token'
+        message: 'Invalid refresh token',
       });
     }
 
     res.status(401).json({
       success: false,
-      message: 'Invalid refresh token'
+      message: 'Invalid refresh token',
     });
   }
 };
@@ -558,13 +583,13 @@ export const logout = async (req, res) => {
     res.json({
       success: true,
       message: 'Logged out successfully',
-      timestamp: new Date().toISOString()
+      timestamp: new Date().toISOString(),
     });
   } catch (err) {
     console.error('Logout error:', err);
     res.status(500).json({
       success: false,
-      message: 'Logout failed'
+      message: 'Logout failed',
     });
   }
 };
@@ -577,18 +602,34 @@ export const logout = async (req, res) => {
  * @desc    Change user password
  * @route   POST /api/auth/change-password
  * @access  Private (requires authentication)
- * @body    { currentPassword, newPassword }
+ * @body    { currentPassword, newPassword, confirmNewPassword? }
  */
 export const changePassword = async (req, res) => {
   try {
-    const { currentPassword, newPassword } = req.body;
+    const { currentPassword, newPassword, confirmNewPassword } = req.body;
     const userId = req.user.id;
 
     // Validate input
     if (!currentPassword || !newPassword) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide current and new password'
+        message: 'Please provide current and new password',
+      });
+    }
+
+    // Frontend also sends confirmNewPassword — enforce it here too
+    if (confirmNewPassword !== undefined && confirmNewPassword !== newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passwords do not match',
+      });
+    }
+
+    // Password strength — mirror frontend PASSWORD_RULES
+    if (!PASSWORD_REGEX.test(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        message: PASSWORD_RULE_MESSAGE,
       });
     }
 
@@ -597,7 +638,7 @@ export const changePassword = async (req, res) => {
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found'
+        message: 'User not found',
       });
     }
 
@@ -605,11 +646,11 @@ export const changePassword = async (req, res) => {
     if (!isMatch) {
       return res.status(401).json({
         success: false,
-        message: 'Current password is incorrect'
+        message: 'Current password is incorrect',
       });
     }
 
-    user.password = newPassword;
+    user.password = newPassword; // model pre-save hook hashes it
     await user.save();
 
     const { accessToken, refreshToken } = generateTokens(user._id);
@@ -618,13 +659,13 @@ export const changePassword = async (req, res) => {
       success: true,
       message: 'Password changed successfully',
       accessToken,
-      refreshToken
+      refreshToken,
     });
   } catch (err) {
     console.error('Change password error:', err);
     res.status(500).json({
       success: false,
-      message: err.message
+      message: err.message,
     });
   }
 };
@@ -638,6 +679,7 @@ export const changePassword = async (req, res) => {
  * @route   POST /api/auth/forgot-password
  * @access  Public
  * @body    { email }
+ * @returns { success, message, expiresIn, resendIn, codeLength }
  */
 export const sendPasswordResetOTP = async (req, res) => {
   try {
@@ -646,20 +688,23 @@ export const sendPasswordResetOTP = async (req, res) => {
     if (!email) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide email address'
+        message: 'Please provide email address',
       });
     }
 
     const user = await User.findOne({
       email: normalizeEmail(email),
-      $or: [{ isPhoneVerified: true }, { isEmailVerified: true }]
+      $or: [{ isPhoneVerified: true }, { isEmailVerified: true }],
     });
 
+    // Do not reveal whether the email exists
     if (!user) {
       return res.json({
         success: true,
         message: 'If your email is registered, you will receive a password reset OTP',
-        expiresIn: 600
+        expiresIn: OTP_TTL_MS / 1000,
+        resendIn: RESEND_COOLDOWN_MS / 1000,
+        codeLength: RESET_OTP_LENGTH,
       });
     }
 
@@ -669,12 +714,16 @@ export const sendPasswordResetOTP = async (req, res) => {
       return res.status(429).json({
         success: false,
         message: `Please wait ${retryAfter} seconds before requesting another OTP`,
-        retryAfter
+        retryAfter,
       });
     }
 
-    const otp = OTPService.generateOTP();
+    const otp = generateResetOTP();
     user.otp = await buildOtp(otp, 'password_reset');
+
+    // Clear any previous reset token so only the new OTP can be used
+    user.passwordResetToken = undefined;
+    user.passwordResetExpires = undefined;
 
     await user.save();
 
@@ -687,14 +736,15 @@ export const sendPasswordResetOTP = async (req, res) => {
     res.json({
       success: true,
       message: 'If your email is registered, you will receive a password reset OTP',
-      expiresIn: 600
+      expiresIn: OTP_TTL_MS / 1000,
+      resendIn: RESEND_COOLDOWN_MS / 1000,
+      codeLength: RESET_OTP_LENGTH,
     });
-
   } catch (error) {
     console.error('Send password reset OTP error:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -704,6 +754,7 @@ export const sendPasswordResetOTP = async (req, res) => {
  * @route   POST /api/auth/forgot-password/verify
  * @access  Public
  * @body    { email, otp }
+ * @returns { success, message, resetToken, expiresIn }
  */
 export const verifyPasswordResetOTP = async (req, res) => {
   try {
@@ -712,7 +763,7 @@ export const verifyPasswordResetOTP = async (req, res) => {
     if (!email || !otp) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide email and OTP'
+        message: 'Please provide email and OTP',
       });
     }
 
@@ -720,13 +771,13 @@ export const verifyPasswordResetOTP = async (req, res) => {
       email: normalizeEmail(email),
       $or: [{ isPhoneVerified: true }, { isEmailVerified: true }],
       'otp.purpose': 'password_reset',
-      'otp.verified': false
+      'otp.verified': false,
     });
 
     if (!user) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid request or OTP expired'
+        message: 'Invalid request or OTP expired',
       });
     }
 
@@ -735,7 +786,7 @@ export const verifyPasswordResetOTP = async (req, res) => {
       await user.save();
       return res.status(400).json({
         success: false,
-        message: 'OTP expired. Request new OTP.'
+        message: 'OTP expired. Request new OTP.',
       });
     }
 
@@ -744,7 +795,7 @@ export const verifyPasswordResetOTP = async (req, res) => {
       await user.save();
       return res.status(400).json({
         success: false,
-        message: 'Too many failed attempts. Request new OTP.'
+        message: 'Too many failed attempts. Request new OTP.',
       });
     }
 
@@ -758,17 +809,18 @@ export const verifyPasswordResetOTP = async (req, res) => {
       return res.status(400).json({
         success: false,
         message: 'Invalid OTP',
-        attemptsLeft: OTP_MAX_ATTEMPTS - user.otp.attempts
+        attemptsLeft: OTP_MAX_ATTEMPTS - user.otp.attempts,
       });
     }
 
-    user.otp.verified = true;
-    user.markModified('otp');
+    // Success: issue a fresh reset token and clear the OTP
     const resetToken = OTPService.generateToken();
     const hashedToken = OTPService.hashToken(resetToken);
 
     user.passwordResetToken = hashedToken;
-    user.passwordResetExpires = Date.now() + 3600000; // 1 hour
+    user.passwordResetExpires = Date.now() + RESET_TOKEN_TTL_MS;
+    user.otp = undefined; // the reset token is the credential now
+    user.markModified('otp');
 
     await user.save();
 
@@ -776,14 +828,13 @@ export const verifyPasswordResetOTP = async (req, res) => {
       success: true,
       message: 'OTP verified successfully',
       resetToken,
-      expiresIn: 3600
+      expiresIn: RESET_TOKEN_TTL_MS / 1000,
     });
-
   } catch (error) {
     console.error('Verify password reset OTP error:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -792,16 +843,34 @@ export const verifyPasswordResetOTP = async (req, res) => {
  * @desc    Reset password after OTP verification
  * @route   POST /api/auth/forgot-password/reset
  * @access  Public
- * @body    { email, resetToken, newPassword }
+ * @body    { email, resetToken, newPassword, confirmNewPassword }
+ * @returns { success, message, accessToken, refreshToken, user }
  */
 export const resetPassword = async (req, res) => {
   try {
-    const { email, resetToken, newPassword } = req.body;
+    const { email, resetToken, newPassword, confirmNewPassword } = req.body;
 
+    // Basic presence
     if (!email || !resetToken || !newPassword) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide email, resetToken, and newPassword'
+        message: 'Please provide email, resetToken, and newPassword',
+      });
+    }
+
+    // Frontend also sends confirmNewPassword — enforce it here too
+    if (confirmNewPassword !== undefined && confirmNewPassword !== newPassword) {
+      return res.status(400).json({
+        success: false,
+        message: 'Passwords do not match',
+      });
+    }
+
+    // Password strength — mirror frontend PASSWORD_RULES
+    if (!PASSWORD_REGEX.test(newPassword)) {
+      return res.status(400).json({
+        success: false,
+        message: PASSWORD_RULE_MESSAGE,
       });
     }
 
@@ -810,17 +879,17 @@ export const resetPassword = async (req, res) => {
     const user = await User.findOne({
       email: normalizeEmail(email),
       passwordResetToken: hashedToken,
-      passwordResetExpires: { $gt: Date.now() }
+      passwordResetExpires: { $gt: Date.now() },
     });
 
     if (!user) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid or expired reset token'
+        message: 'Invalid or expired reset token',
       });
     }
 
-    user.password = newPassword;
+    user.password = newPassword; // model pre-save hook hashes it
     user.passwordResetToken = undefined;
     user.passwordResetExpires = undefined;
     user.otp = undefined;
@@ -834,14 +903,13 @@ export const resetPassword = async (req, res) => {
       message: 'Password reset successful',
       accessToken,
       refreshToken,
-      user: publicUser(user)
+      user: publicUser(user),
     });
-
   } catch (error) {
     console.error('Reset password error:', error);
     res.status(500).json({
       success: false,
-      message: error.message
+      message: error.message,
     });
   }
 };
@@ -854,8 +922,8 @@ export const resetPassword = async (req, res) => {
  * @desc    Resend a code for registration or password reset
  * @route   POST /api/auth/resend-otp
  * @access  Public
- * @body    { email, purpose: 'registration' }
- * @body    { email, purpose: 'password_reset' }
+ * @body    { email, purpose: 'registration' }   or   { email, purpose: 'password_reset' }
+ * @returns { success, message, expiresIn, resendIn, codeLength }
  */
 export const resendOTP = async (req, res) => {
   try {
@@ -864,7 +932,7 @@ export const resendOTP = async (req, res) => {
     if (!['registration', 'password_reset'].includes(purpose)) {
       return res.status(400).json({
         success: false,
-        message: 'Invalid purpose. Use "registration" or "password_reset"'
+        message: 'Invalid purpose. Use "registration" or "password_reset"',
       });
     }
 
@@ -873,7 +941,7 @@ export const resendOTP = async (req, res) => {
     if (!EMAIL_REGEX.test(email)) {
       return res.status(400).json({
         success: false,
-        message: 'Please provide a valid email address'
+        message: 'Please provide a valid email address',
       });
     }
 
@@ -882,19 +950,19 @@ export const resendOTP = async (req, res) => {
       user = await User.findOne({
         email,
         isPhoneVerified: { $ne: true },
-        isEmailVerified: { $ne: true }
+        isEmailVerified: { $ne: true },
       });
     } else {
       user = await User.findOne({
         email,
-        $or: [{ isPhoneVerified: true }, { isEmailVerified: true }]
+        $or: [{ isPhoneVerified: true }, { isEmailVerified: true }],
       });
     }
 
     if (!user) {
       return res.status(404).json({
         success: false,
-        message: 'User not found or already verified'
+        message: 'User not found or already verified',
       });
     }
 
@@ -904,21 +972,33 @@ export const resendOTP = async (req, res) => {
       return res.status(429).json({
         success: false,
         message: `Please wait ${retryAfter} seconds before requesting another code`,
-        retryAfter
+        retryAfter,
       });
     }
 
-    const otp = purpose === 'registration' ? generateRegistrationOTP() : OTPService.generateOTP();
+    const otp =
+      purpose === 'registration' ? generateRegistrationOTP() : generateResetOTP();
+
     user.otp = await buildOtp(otp, purpose);
+
+    // For reset requests, clear any old reset token so the new OTP is the only path
+    if (purpose === 'password_reset') {
+      user.passwordResetToken = undefined;
+      user.passwordResetExpires = undefined;
+    }
 
     await user.save();
 
     if (purpose === 'registration') {
-      const sent = await sendRegistrationCode({ phone: user.phone, email: user.email, otp });
+      const sent = await sendRegistrationCode({
+        phone: user.phone,
+        email: user.email,
+        otp,
+      });
       if (!sent) {
         return res.status(503).json({
           success: false,
-          message: 'We could not send a new code. Please try again.'
+          message: 'We could not send a new code. Please try again.',
         });
       }
     } else {
@@ -933,14 +1013,14 @@ export const resendOTP = async (req, res) => {
       success: true,
       message: 'A new code has been sent',
       expiresIn: OTP_TTL_MS / 1000,
-      resendIn: RESEND_COOLDOWN_MS / 1000
+      resendIn: RESEND_COOLDOWN_MS / 1000,
+      codeLength: purpose === 'registration' ? REG_OTP_LENGTH : RESET_OTP_LENGTH,
     });
-
   } catch (error) {
     console.error('Resend OTP error:', error);
     res.status(500).json({
       success: false,
-      message: 'Something went wrong. Please try again.'
+      message: 'Something went wrong. Please try again.',
     });
   }
 };

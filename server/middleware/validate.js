@@ -129,21 +129,11 @@ const rules = {
   // OTP RULES
   // ───────────────────────────────────────────────────────────
 
-  // 6-digit OTP
-  // Used for password reset and other 6-digit OTP flows.
+  // 4-digit OTP — used by both registration and password reset.
+  // Must stay in sync with:
+  //   - controllers/authController.js (REG_OTP_LENGTH, RESET_OTP_LENGTH)
+  //   - app/.../ForgotPassword.tsx (CODE_LENGTH)
   otp: (value, field) => {
-    if (!value) return null;
-
-    const otpRegex = /^\d{6}$/;
-
-    return !otpRegex.test(String(value).trim())
-      ? `${field} must be a 6-digit number`
-      : null;
-  },
-
-  // 4-digit OTP
-  // Used specifically for registration.
-  otp4: (value, field) => {
     if (!value) return null;
 
     const otpRegex = /^\d{4}$/;
@@ -284,24 +274,15 @@ const rules = {
         errors.push(`at least ${config.minLength} characters`);
       }
 
-      if (
-        config.requireUppercase &&
-        !/[A-Z]/.test(password)
-      ) {
+      if (config.requireUppercase && !/[A-Z]/.test(password)) {
         errors.push("an uppercase letter");
       }
 
-      if (
-        config.requireLowercase &&
-        !/[a-z]/.test(password)
-      ) {
+      if (config.requireLowercase && !/[a-z]/.test(password)) {
         errors.push("a lowercase letter");
       }
 
-      if (
-        config.requireNumber &&
-        !/\d/.test(password)
-      ) {
+      if (config.requireNumber && !/\d/.test(password)) {
         errors.push("a number");
       }
 
@@ -312,10 +293,7 @@ const rules = {
         errors.push("a special character");
       }
 
-      if (
-        config.noSpaces &&
-        /\s/.test(password)
-      ) {
+      if (config.noSpaces && /\s/.test(password)) {
         errors.push("no spaces");
       }
 
@@ -333,9 +311,7 @@ const rules = {
           "monkey",
         ];
 
-        if (
-          commonPasswords.includes(password.toLowerCase())
-        ) {
+        if (commonPasswords.includes(password.toLowerCase())) {
           return `${field} is too common. Please choose a stronger password`;
         }
       }
@@ -477,7 +453,7 @@ const validateVerifyRegistration = validateRequest({
 
   otp: [
     rules.required,
-    rules.otp4,
+    rules.otp,
   ],
 });
 
@@ -742,7 +718,7 @@ const validateSendRegistrationOTP = validateRequest({
 
 // ─────────────────────────────────────────────────────────────
 // SEND PASSWORD RESET OTP
-// 6-digit OTP
+// 4-digit OTP
 // Email-based
 // ─────────────────────────────────────────────────────────────
 
@@ -751,15 +727,11 @@ const validateSendPasswordResetOTP = validateRequest({
     rules.required,
     rules.email,
   ],
-
-  purpose: [
-    rules.inArray(["password_reset"]),
-  ],
 });
 
 // ─────────────────────────────────────────────────────────────
 // VERIFY PASSWORD RESET OTP
-// 6 DIGIT
+// 4 DIGIT
 // EMAIL + OTP
 // ─────────────────────────────────────────────────────────────
 
